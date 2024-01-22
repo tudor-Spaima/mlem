@@ -50,10 +50,6 @@ public class commandbase extends Hardware {
 
     }
 
-    public void scorePos(){
-        moveBrat(CONSTANTS.BRAT_SCORE);
-        movePivot(CONSTANTS.PIVOT_SCORE);
-    }
 
 
 
@@ -68,35 +64,40 @@ public class commandbase extends Hardware {
     }
 
     public  boolean leftSensor(){
-        if(dist_l.getDistance(DistanceUnit.CM)<= 4.5)
+        if(dist_l.getDistance(DistanceUnit.CM)<= 5)
             return true;
         else return false;
 
     }
 
     public boolean rightSensor(){
-        if(dist_r.getDistance(DistanceUnit.CM)<= 6)
+        if(dist_r.getDistance(DistanceUnit.CM)<= 7)
             return true;
         else return false;
 
     }
 
-    public void swing( CONSTANTS.swing_direction direction){
-        if(direction == CONSTANTS.swing_direction.up){
-            movePivot(CONSTANTS.PIVOT_SCORE);
-            claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
-            claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
-            moveBrat(CONSTANTS.BRAT_SCORE);
-
-        }else{
-            movePivot(CONSTANTS.PIVOT_INTAKE);
 
 
-            moveBrat(CONSTANTS.BRAT_INTAKE);
+     public  void swingToNeutral() {
+         claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+         claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
 
+        movePivot(CONSTANTS.PIVOT_NEUTRAL);
 
-        }
+        moveBrat(CONSTANTS.BRAT_NEUTRAL);
     }
+
+    public void swingToUp(){
+        claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+        claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
+
+        movePivot(CONSTANTS.PIVOT_UP);
+
+        moveBrat(CONSTANTS.BRAT_UP);
+    }
+
+
 
 
 

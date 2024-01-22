@@ -14,16 +14,24 @@ public class CONSTANTS {
 
     public static final double BRAT_INTAKE = 0.95;
     public static final double BRAT_SAFE = 0.97;
-    public static final double BRAT_SCORE = 0.54;
-    public static final double BRAT_STACK_1 = 0.87;
-    public static final double BRAT_STACK_2 = 0.8;
+
+
+    public static final double BRAT_NEUTRAL = 0.54;
+    public static final double BRAT_UP = 0.4;
+
+
+
 
 
     public static final double PIVOT_INTAKE = 0.12;
-    public static final double PIVOT_SCORE = 0.31;
     public static final double PIVOT_SAFE = 0.7;
+    public static final double PIVOT_NEUTRAL = 0.31;
+    public static final double PIVOT_UP = 0.55;
 
-    public static final int SLIDE_UP = -1600;
+
+
+
+    public static final int SLIDE_NEUTRAL = -1600;
 
 
 
@@ -36,7 +44,6 @@ public class CONSTANTS {
 
     public enum claws{claw_l,claw_r}
 
-    public enum swing_direction{up,down}
 
 
 

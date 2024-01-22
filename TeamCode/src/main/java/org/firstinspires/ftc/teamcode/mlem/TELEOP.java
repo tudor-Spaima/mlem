@@ -6,6 +6,7 @@ import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.outoftheboxrobotics.photoncore.PhotonCore;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -20,6 +21,7 @@ class SystemsController implements Runnable {
     Telemetry telemetry;
     SampleMecanumDrive drive ;
     Gamepad gp1;
+    double s=0;
 
     public SystemsController(Telemetry telemetry, Gamepad gp1, SampleMecanumDrive drive) {
         this.telemetry = telemetry;
@@ -28,14 +30,22 @@ class SystemsController implements Runnable {
     }
     @Override
     public void run() {
+        drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         while (true) {
             this.drive.setWeightedDrivePower(
                     new Pose2d(
-                            this.gp1.left_stick_y,
-                            this.gp1.left_stick_x,
-                            this.gp1.right_stick_x
+                            -this.gp1.left_stick_y * s,
+                            -this.gp1.left_stick_x * s,
+                            -this.gp1.right_stick_x * s
                     )
             );
+            this.drive.update();
+            if(this.gp1.right_trigger != 0){
+                s= 0.5;
+
+            }else{
+                s=1;
+            }
 
         }
     }
@@ -46,8 +56,9 @@ public class TELEOP extends LinearOpMode {
 
     private enum states {SAFE, INTAKE, SCORE};
     private enum modes {NORMAL, FAIL};
+    private enum claws_control_states{MANUAL, AUTOMATIC}
+    private enum scoring_positions{UP, NEUTRAL}
 
-    private  enum drive_modes {};
 
 
 
@@ -57,15 +68,13 @@ public class TELEOP extends LinearOpMode {
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
         TELEOP.states state = TELEOP.states.SAFE;
-        TELEOP.modes mode = TELEOP.modes.NORMAL;
+        TELEOP.modes mode = modes.NORMAL;
+        scoring_positions scoring_position = scoring_positions.NEUTRAL;
 
         CONSTANTS.claw_states claw_l_state = CONSTANTS.claw_states.open;
         CONSTANTS.claw_states claw_r_state = CONSTANTS.claw_states.open;
 
-
-
-
-
+        boolean primu = true;
 
 
         ElapsedTime runtime = new ElapsedTime();
@@ -115,7 +124,7 @@ public class TELEOP extends LinearOpMode {
 
                         case SAFE:
 
-                            if (gamepad2.dpad_left) {
+                            if (gamepad2.dpad_left && primu) {
                                 cb.intakePos();
                                 state = TELEOP.states.INTAKE;
                                 //open claws
@@ -123,7 +132,23 @@ public class TELEOP extends LinearOpMode {
                                 cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
                                 claw_l_state = CONSTANTS.claw_states.open;
                                 claw_r_state = CONSTANTS.claw_states.open;
+                                primu  = false;
 
+                            }
+
+                            if(gamepad2.x){
+                                cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                                cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                                claw_l_state = CONSTANTS.claw_states.open;
+                                claw_r_state = CONSTANTS.claw_states.open;
+                                state = states.INTAKE;
+                            }
+
+                            if(gamepad2.triangle){
+                                cb.controlSlider(CONSTANTS.SLIDE_NEUTRAL);
+                                while ((cb.slider_l.getCurrentPosition() > (CONSTANTS.SLIDE_NEUTRAL+10)) && (cb.slider_r.getCurrentPosition() > (CONSTANTS.SLIDE_NEUTRAL+10))&& !isStopRequested() &&opModeIsActive()){}
+                                cb.swingToNeutral();
+                                state = states.SCORE;
                             }
 
                             break;
@@ -138,7 +163,7 @@ public class TELEOP extends LinearOpMode {
                             }
 
 
-
+                            //CLAWS CONTROL
                             if (gamepad1.left_bumper) {
                                 if (claw_l_state == CONSTANTS.claw_states.open) {
                                     cb.claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
@@ -172,26 +197,38 @@ public class TELEOP extends LinearOpMode {
                                 claw_r_state = CONSTANTS.claw_states.closed;
                             }
 
-                            if(claw_l_state == CONSTANTS.claw_states.closed && claw_l_state == CONSTANTS.claw_states.closed ){
+                            if(claw_l_state == CONSTANTS.claw_states.closed && claw_l_state == CONSTANTS.claw_states.closed && cb.leftSensor() && cb.rightSensor()){
                                 sleep(200);
                                 cb.botSAFE();
-                                state = states.SCORE;
+                                state = states.SAFE;
 
                             }
 
                             if(gamepad2.circle){
                                 cb.botSAFE();
-                                state = states.SCORE;
+                                state = states.SAFE;
                             }
                             break;
 
                             case  SCORE:
 
-                                if(gamepad2.triangle){
-                                    cb.controlSlider(CONSTANTS.SLIDE_UP);
-                                    sleep(3000);
-                                    cb.swing(CONSTANTS.swing_direction.up);
-                                }
+                                    if (gamepad2.dpad_up) {scoring_position = scoring_positions.UP;}
+                                    if (gamepad2.dpad_down) {scoring_position = scoring_positions.NEUTRAL;}
+                                    switch (scoring_position) {
+                                        case UP:
+                                            cb.movePivot(CONSTANTS.PIVOT_UP);
+                                            cb.moveBrat(CONSTANTS.BRAT_UP);
+                                            break;
+                                        case NEUTRAL:
+                                            cb.movePivot(CONSTANTS.PIVOT_NEUTRAL);
+                                            cb.moveBrat(CONSTANTS.BRAT_NEUTRAL);
+                                            break;
+
+                                    }
+
+
+
+
 
                                 if (gamepad1.left_bumper) {
                                         cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
@@ -208,9 +245,14 @@ public class TELEOP extends LinearOpMode {
                                     claw_r_state = CONSTANTS.claw_states.closed;
 
                                     sleep(300);
-                                    cb.swing(CONSTANTS.swing_direction.down);
+                                    cb.intakePos();
                                     sleep(1000);
                                     cb.controlSlider(0);
+
+                                    cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                                    cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                                    claw_l_state = CONSTANTS.claw_states.open;
+                                    claw_r_state = CONSTANTS.claw_states.open;
                                     state = states.INTAKE;
                                 }
 
@@ -221,6 +263,8 @@ public class TELEOP extends LinearOpMode {
 
 
                     if(gamepad2.touchpad){
+                        cb.slider_l.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                        cb.slider_r.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                         mode = TELEOP.modes.FAIL;
                     }
 
@@ -257,6 +301,9 @@ public class TELEOP extends LinearOpMode {
                         cb.slider_l.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
                         cb.slider_r.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
 
+                        cb.slider_l.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                        cb.slider_r.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+
                         mode = TELEOP.modes.NORMAL;
 
 
@@ -274,6 +321,8 @@ public class TELEOP extends LinearOpMode {
         }
 
     }
+
+
 
 
 }

@@ -6,6 +6,8 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.mlem.CONSTANTS;
 
 
+import com.outoftheboxrobotics.photoncore.HAL.I2C.Commands.PhotonLynxI2cReadSingleByteCommand;
+import com.outoftheboxrobotics.photoncore.HAL.Motors.Commands.PhotonCommandBase;
 import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.ColorRangeSensor;
