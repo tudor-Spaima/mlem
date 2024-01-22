@@ -1,27 +1,18 @@
 package org.firstinspires.ftc.teamcode.mlem;
 
-;
-
-import static com.outoftheboxrobotics.photoncore.PhotonCore.photon;
-
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
-
-import com.outoftheboxrobotics.photoncore.Photon;
 import com.outoftheboxrobotics.photoncore.PhotonCore;
-import com.qualcomm.ftccommon.FtcEventLoop;
-import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
-import java.util.List;
 
 
 class SystemsController implements Runnable {
@@ -29,6 +20,7 @@ class SystemsController implements Runnable {
     Telemetry telemetry;
     SampleMecanumDrive drive ;
     Gamepad gp1;
+
     public SystemsController(Telemetry telemetry, Gamepad gp1, SampleMecanumDrive drive) {
         this.telemetry = telemetry;
         this.gp1 = gp1;
@@ -49,19 +41,31 @@ class SystemsController implements Runnable {
     }
 }
 
-@Photon
-@Config
 @TeleOp(name = "TELEOP")
 public class TELEOP extends LinearOpMode {
 
-    public enum states {SAFE, INTAKE, SCORE};
+    private enum states {SAFE, INTAKE, SCORE};
+    private enum modes {NORMAL, FAIL};
+
+    private  enum drive_modes {};
+
+
 
     @Override
     public void runOpMode() throws InterruptedException {
+
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
         TELEOP.states state = TELEOP.states.SAFE;
-        CONSTANTS.claw_states claw_state = CONSTANTS.claw_states.open;
+        TELEOP.modes mode = TELEOP.modes.NORMAL;
+
+        CONSTANTS.claw_states claw_l_state = CONSTANTS.claw_states.open;
+        CONSTANTS.claw_states claw_r_state = CONSTANTS.claw_states.open;
+
+
+
+
+
 
 
         ElapsedTime runtime = new ElapsedTime();
@@ -71,118 +75,208 @@ public class TELEOP extends LinearOpMode {
         commandbase cb = new commandbase(hardwareMap);
 
 
-//        PhotonCore photonCore = new PhotonCore();
-//        photonCore.onOpModePreStart(this);
+        PhotonCore photonCore = new PhotonCore();
+        PhotonCore.ExperimentalParameters ph = new PhotonCore.ExperimentalParameters();
+        ph.setMaximumParallelCommands(8);
+        ph.setSinglethreadedOptimized(false);
 
-        //photonCore.onOpModePreStart(this);
+        cb.botSAFE();
 
 
-        cb.safePos();
+
         waitForStart();
 
 
         systemControllerThread.start();
-        while (opModeIsActive()){
+        while (opModeIsActive()) {
 
-            telemetry.addData("runtime: ", runtime.seconds());
-            telemetry.addData("state ", state);
-            telemetry.addData("slider", cb.slider_r.getCurrentPosition());
+            telemetry.addData("STATE ", state);
+            telemetry.addData("MODE ", mode);
+
+            telemetry.addData("DISTANCE (CM) ", cb.distanta.getDistance(DistanceUnit.CM));
+            telemetry.addData("DISTANCE_L (CM) ", cb.dist_l.getDistance(DistanceUnit.CM));
+            telemetry.addData("DISTANCE_R (CM) ", cb.dist_r.getDistance(DistanceUnit.CM));
+
+            telemetry.addData("slider_r", cb.slider_r.getCurrentPosition());
+            telemetry.addData("slider_l", cb.slider_l.getCurrentPosition());
+
+            telemetry.addData("touchpad1 pressed", gamepad1.touchpad);
+            telemetry.addData("touchpad2 pressed", gamepad2.touchpad);
+
+
 
             telemetry.update();
 
+            switch (mode) {
+                case NORMAL:
 
 
-            switch (state) {
+                    switch (state) {
 
-                case SAFE:
+                        case SAFE:
 
-                    if(gamepad2.dpad_left){
-                        cb.intakePos();
-                        state = TELEOP.states.INTAKE;
+                            if (gamepad2.dpad_left) {
+                                cb.intakePos();
+                                state = TELEOP.states.INTAKE;
+                                //open claws
+                                cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                                cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                                claw_l_state = CONSTANTS.claw_states.open;
+                                claw_r_state = CONSTANTS.claw_states.open;
+
+                            }
+
+                            break;
+
+                        case INTAKE:
+                            if (gamepad2.left_trigger != 0) {
+                                cb.movePivot(CONSTANTS.PIVOT_SAFE);
+
+                            } else {
+                                cb.movePivot(CONSTANTS.PIVOT_INTAKE);
+                                cb.bratJos(gamepad1.left_trigger != 0);
+                            }
+
+
+
+                            if (gamepad1.left_bumper) {
+                                if (claw_l_state == CONSTANTS.claw_states.open) {
+                                    cb.claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+                                    claw_l_state = CONSTANTS.claw_states.closed;
+                                    sleep(200);
+                                } else {
+                                    cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                                    claw_l_state = CONSTANTS.claw_states.open;
+                                    sleep(200);
+                                }
+                            }
+
+                            if (gamepad1.right_bumper) {
+                                if (claw_r_state == CONSTANTS.claw_states.open) {
+                                    cb.claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
+                                    claw_r_state = CONSTANTS.claw_states.closed;
+                                    sleep(200);
+                                } else {
+                                    cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                                    claw_r_state = CONSTANTS.claw_states.open;
+                                    sleep(200);
+                                }
+                            }
+                            if(cb.leftSensor()){
+                                cb.claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+                                claw_l_state = CONSTANTS.claw_states.closed;
+
+                            }
+                            if (cb.rightSensor()) {
+                                cb.claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
+                                claw_r_state = CONSTANTS.claw_states.closed;
+                            }
+
+                            if(claw_l_state == CONSTANTS.claw_states.closed && claw_l_state == CONSTANTS.claw_states.closed ){
+                                sleep(200);
+                                cb.botSAFE();
+                                state = states.SCORE;
+
+                            }
+
+                            if(gamepad2.circle){
+                                cb.botSAFE();
+                                state = states.SCORE;
+                            }
+                            break;
+
+                            case  SCORE:
+
+                                if(gamepad2.triangle){
+                                    cb.controlSlider(CONSTANTS.SLIDE_UP);
+                                    sleep(3000);
+                                    cb.swing(CONSTANTS.swing_direction.up);
+                                }
+
+                                if (gamepad1.left_bumper) {
+                                        cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                                        claw_l_state = CONSTANTS.claw_states.open;
+                                }
+                                if(gamepad1.right_bumper){
+                                    cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                                    claw_r_state = CONSTANTS.claw_states.open;
+                                }
+                                if(gamepad2.cross){
+                                    cb.claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
+                                    cb.claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+                                    claw_l_state = CONSTANTS.claw_states.closed;
+                                    claw_r_state = CONSTANTS.claw_states.closed;
+
+                                    sleep(300);
+                                    cb.swing(CONSTANTS.swing_direction.down);
+                                    sleep(1000);
+                                    cb.controlSlider(0);
+                                    state = states.INTAKE;
+                                }
+
+
                     }
+
+
+
+
+                    if(gamepad2.touchpad){
+                        mode = TELEOP.modes.FAIL;
+                    }
+
 
                     break;
-                case INTAKE:
-                    cb.controlCioc(CONSTANTS.ciock_states.open);
 
 
-                    if (gamepad2.left_bumper) {
-                        cb.controlIntake(CONSTANTS.intake_states.extended);
-                    }
-                    if (gamepad2.right_bumper) {
-                        cb.controlIntake(CONSTANTS.intake_states.retracted);
-                    }
+                case FAIL:
 
-                    if(gamepad1.right_bumper){
-                        if(claw_state == CONSTANTS.claw_states.closed ){
-                            claw_state = CONSTANTS.claw_states.open;
-                        }else{
-                            claw_state = CONSTANTS.claw_states.closed;
+                    cb.slider_l.setPower(gamepad2.right_trigger - gamepad2.left_trigger);
+                    cb.slider_r.setPower(gamepad2.right_trigger - gamepad2.left_trigger);
 
-                                                    }
-                        sleep(200);
+                    if (gamepad1.left_bumper) {
+                        if (claw_l_state == CONSTANTS.claw_states.open) {
+                            cb.claw_l.setPosition(CONSTANTS.CLAW_L_CLOSED);
+                            claw_l_state = CONSTANTS.claw_states.closed;
+                        } else {
+                            cb.claw_l.setPosition(CONSTANTS.CLAW_L_OPEN);
+                            claw_l_state = CONSTANTS.claw_states.open;
+                        }
                     }
 
-                    cb.controlClaw(claw_state);
-                    if(gamepad2.left_trigger != 0){
-                        cb.moveBrat(CONSTANTS.BRAT_SAFE);
-                        cb.movePivot(CONSTANTS.PIVOT_SAFE);
-
-                    }else{
-                        cb.bratJos(gamepad1.left_trigger!=0);
-                        cb.movePivot(CONSTANTS.PIVOT_INTAKE);
-
-
+                    if (gamepad1.right_bumper) {
+                        if (claw_r_state == CONSTANTS.claw_states.open) {
+                            cb.claw_r.setPosition(CONSTANTS.CLAW_R_CLOSED);
+                            claw_r_state = CONSTANTS.claw_states.closed;
+                        } else {
+                            cb.claw_r.setPosition(CONSTANTS.CLAW_R_OPEN);
+                            claw_r_state = CONSTANTS.claw_states.open;
+                        }
                     }
 
+                    if(gamepad2.touchpad){
+                        cb.slider_l.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+                        cb.slider_r.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
 
+                        mode = TELEOP.modes.NORMAL;
 
-                    if(gamepad2.dpad_right){
-                        cb.transfer();
-                        sleep(200);
-                        state = TELEOP.states.SCORE;
 
 
                     }
+
 
 
                     break;
-                case SCORE:
 
-                    if(gamepad2.dpad_up ) {
-                        cb.controlCioc(CONSTANTS.ciock_states.closed);
-                        cb.controlSlider(CONSTANTS.SLIDE_SUS);
-                        sleep(200);
-                        cb.controlCupa(CONSTANTS.cupa_states.basculat);
 
-                    }
 
-                    if(gamepad1.right_trigger!=0){
-                        cb.controlCioc(CONSTANTS.ciock_states.open);
 
-                    }else {
-                        cb.controlCioc(CONSTANTS.ciock_states.closed);
-
-                    }
-
-                    if(gamepad2.right_trigger!=0)    {
-
-                        cb.controlCupa(CONSTANTS.cupa_states.transfer);
-                        cb.intakePos();
-                        claw_state = CONSTANTS.claw_states.open;
-
-                        cb.controlSlider(0);
-
-                        state = TELEOP.states.INTAKE;
-
-                    }
-
-                    break;
             }
-
         }
-
 
     }
 
+
 }
+
+
+
